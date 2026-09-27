@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#17332f">
+  <title>五物快手 — 反應小遊戲</title>
+  <style>
+/* 五物快手 — 樣式。顏色與尺寸集中在 :root 變數，方便調整。 */
+:root {
+  --felt-1: #24504a;
+  --felt-2: #10261f;
+  --card: #fffaf0;
+  --card-edge: #e4d6b4;
+  --ink: #26252d;
+  --accent: #ffb703;
+  --accent-dark: #c98600;
+  --good: #2fbf71;
+  --bad: #e5383b;
+  --panel: rgba(0, 0, 0, .3);
+  --font: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", "Heiti TC", system-ui, -apple-system, sans-serif;
+  /* 題目卡寬度：受畫面寬度與高度共同限制，矮螢幕時自動縮小 */
+  --card-w: min(92vw, 520px, calc((100vh - 330px) * 1.5));
+}
+@supports (height: 100dvh) {
+  :root { --card-w: min(92vw, 520px, calc((100dvh - 330px) * 1.5)); }
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: var(--font);
+  color: #fff;
+  background: radial-gradient(ellipse at 50% 35%, var(--felt-1), var(--felt-2) 75%);
+  overflow: hidden;
+  /* 避免手機上的文字選取、長按選單、雙擊縮放與下拉重新整理 */
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+  touch-action: manipulation;
+  overscroll-behavior: none;
+}
+button { font-family: inherit; -webkit-appearance: none; appearance: none; touch-action: manipulation; }
+
+#app { position: relative; height: 100vh; width: 100%; }
+@supports (height: 100dvh) { #app { height: 100dvh; } }
+
+.screen {
+  position: absolute; inset: 0;
+  display: none; flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.screen.active { display: flex; }
+
+/* ═════════ 按鈕 ═════════ */
+.btn {
+  border: 0; border-radius: 18px; cursor: pointer; color: var(--ink);
+  padding: 14px 20px; min-width: 240px;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  transition: transform .06s, box-shadow .06s;
+}
+.btn-main { font-size: 22px; font-weight: 800; }
+.btn-sub { font-size: 13px; opacity: .7; font-weight: 600; }
+.btn-primary { background: linear-gradient(#ffd166, var(--accent)); box-shadow: 0 6px 0 var(--accent-dark), 0 12px 18px rgba(0,0,0,.35); }
+.btn-secondary { background: linear-gradient(#fffaf0, #eadfc4); box-shadow: 0 6px 0 #b6a67c, 0 12px 18px rgba(0,0,0,.35); }
+.btn:active { transform: translateY(4px); }
+.btn-primary:active { box-shadow: 0 2px 0 var(--accent-dark), 0 4px 8px rgba(0,0,0,.35); }
+.btn-secondary:active { box-shadow: 0 2px 0 #b6a67c, 0 4px 8px rgba(0,0,0,.35); }
+
+.btn-mini {
+  border: 0; border-radius: 999px; background: var(--panel); color: #fff;
+  padding: 6px 14px; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.btn-pill {
+  border: 0; border-radius: 999px; padding: 10px 18px; font-size: 15px; font-weight: 800;
+  background: #fffaf0; color: var(--ink); cursor: pointer; box-shadow: 0 3px 0 #b6a67c;
+}
+.btn-pill-primary { background: var(--accent); box-shadow: 0 3px 0 var(--accent-dark); }
+.btn-pill:active { transform: translateY(2px); box-shadow: none; }
+
+/* ═════════ 首頁 / 結果 ═════════ */
+.menu-inner, .result-inner {
+  margin: auto; width: min(94vw, 560px); padding: 20px 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center;
+  overflow-y: auto; max-height: 100%;
+}
+.title {
+  margin: 0; font-size: clamp(42px, 12vw, 68px); font-weight: 900; letter-spacing: .08em;
+  color: #fff8e1; text-shadow: 0 4px 0 #0a1a16, 0 8px 20px rgba(0,0,0,.4);
+}
+.subtitle { margin: -8px 0 0; opacity: .8; font-size: 15px; }
+
+.legend { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.legend-item {
+  background: var(--card); color: var(--ink); border-radius: 12px; padding: 6px 4px 4px; width: 62px;
+  display: flex; flex-direction: column; align-items: center; font-size: 12px; font-weight: 700;
+  box-shadow: 0 3px 0 var(--card-edge);
+}
+.legend-item svg { width: 40px; height: 40px; }
+.menu-buttons { display: flex; flex-direction: column; gap: 16px; align-items: center; }
+.best { margin: -6px 0 0; font-weight: 700; color: #ffe08a; }
+
+.howto { width: 100%; background: var(--panel); border-radius: 14px; padding: 10px 14px; text-align: left; }
+.howto summary { cursor: pointer; font-weight: 800; text-align: center; }
+.howto-body { font-size: 14px; line-height: 1.65; }
+.howto-body p { margin: 10px 0 0; }
+.howto-body b { color: var(--accent); }
+.howto-score { opacity: .85; }
+
+.result-title { margin: 0; font-size: 34px; font-weight: 900; }
+.result-score { display: flex; flex-direction: column; align-items: center; }
+.result-score .big { font-size: clamp(56px, 18vw, 88px); font-weight: 900; color: var(--accent); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.newbest { font-weight: 800; color: #ffe08a; }
+.label { font-size: 12px; opacity: .75; font-weight: 700; }
+.result-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; }
+.r-item { background: var(--panel); border-radius: 14px; padding: 10px 6px; display: flex; flex-direction: column; gap: 2px; }
+.r-item .value { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.result-note { margin: -6px 0 0; font-size: 12px; opacity: .6; }
+
+/* ═════════ 遊戲畫面 ═════════ */
+.topbar, .hud, .timebar { width: 100%; max-width: 640px; margin-left: auto; margin-right: auto; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px 0; min-height: 40px; }
+.mode-label { font-weight: 800; opacity: .85; font-size: 14px; }
+#screen-game[data-mode="challenge"] #btn-finish { visibility: hidden; }
+
+.hud { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 8px 10px 6px; }
+.stat { background: var(--panel); border-radius: 12px; padding: 6px 2px; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.stat .value { font-size: clamp(20px, 6vw, 30px); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.15; }
+#stat-time.low .value { color: #ff6b6b; animation: blink .5s steps(2) infinite; }
+#stat-combo.hot .value { color: var(--accent); }
+#stat-combo.fire .value { color: #ff7b2e; text-shadow: 0 0 10px rgba(255,123,46,.8); }
+#screen-game[data-mode="practice"] #timebar { visibility: hidden; }
+
+.timebar { height: 6px; width: calc(100% - 20px); background: rgba(255,255,255,.15); border-radius: 3px; overflow: hidden; }
+.timebar i { display: block; height: 100%; width: 100%; background: var(--accent); transform-origin: left center; }
+
+.table { flex: 1; min-height: 0; overflow-y: auto; display: flex; padding: 8px 12px; }
+.table-inner { margin: auto; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+
+/* 題目卡 */
+.card {
+  position: relative; width: var(--card-w); min-width: 210px; aspect-ratio: 1.5 / 1;
+  background: linear-gradient(160deg, #fffdf6, var(--card));
+  border-radius: 22px; box-shadow: 0 8px 0 var(--card-edge), 0 18px 30px rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: space-evenly; padding: 0 4%;
+}
+.card::after {
+  content: ""; position: absolute; inset: 8px; border: 2px dashed rgba(38,37,45,.18); border-radius: 16px; pointer-events: none;
+}
+.card.enter { animation: card-in .16s ease-out; }
+.slot { width: 42%; aspect-ratio: 1; }
+.slot svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 4px 3px rgba(0,0,0,.2)); }
+.card.empty::before { content: "?"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 90px; font-weight: 900; color: rgba(38,37,45,.15); }
+
+/* 底部答案列 */
+.answers { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 8px 10px calc(12px + env(safe-area-inset-bottom)); width: min(100%, 640px); margin: 0 auto; }
+.ans {
+  position: relative; border: 0; border-radius: 16px; cursor: pointer; color: var(--ink);
+  background: linear-gradient(#fffdf6, #f0e5c8); box-shadow: 0 5px 0 #b6a67c, 0 10px 14px rgba(0,0,0,.35);
+  padding: 8px 2px 6px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  font-size: clamp(13px, 3.6vw, 17px); font-weight: 800; transition: transform .05s;
+}
+.ans svg { width: clamp(38px, 12vw, 68px); height: auto; display: block; pointer-events: none; }
+.ans span { pointer-events: none; }
+.ans .key { position: absolute; top: 4px; left: 7px; font-size: 11px; opacity: .45; }
+@media (hover: none) { .ans .key { display: none; } }
+.ans:active { transform: translateY(3px); box-shadow: 0 2px 0 #b6a67c, 0 4px 8px rgba(0,0,0,.35); }
+
+.ans.flash-correct { animation: flash-correct .42s ease-out; }
+.ans.mark-wrong { background: #ffd6d6; box-shadow: 0 5px 0 #c96a6a, 0 0 0 3px var(--bad); }
+.ans.reveal-correct { background: #d3f8e2; box-shadow: 0 5px 0 #2a9d63, 0 0 0 4px var(--good); animation: reveal 0.45s ease-in-out 2; }
+.ans.reveal-correct::after { content: "✓"; position: absolute; top: 2px; right: 6px; color: #1e8f57; font-size: 16px; font-weight: 900; }
+
+/* 練習模式的回饋 */
+.feedback { width: min(92vw, 520px); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.feedback[hidden] { display: none; }
+.feedback-msg { margin: 0; font-size: 20px; font-weight: 900; }
+.feedback-msg.good { color: #6df0a8; }
+.feedback-msg.bad { color: #ff8a8a; }
+.feedback-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.explain { width: 100%; background: var(--card); color: var(--ink); border-radius: 16px; padding: 12px 16px; text-align: left; font-size: 15px; line-height: 1.6; -webkit-user-select: text; user-select: text; }
+.explain[hidden] { display: none; }
+.explain h3 { margin: 0 0 4px; font-size: 16px; }
+.explain p { margin: 4px 0; }
+.explain ul { margin: 6px 0; padding-left: 20px; }
+.explain li.ok { color: #1d8a52; font-weight: 800; }
+.explain li.no { color: #a33a3a; }
+
+/* 特效層 */
+.bad-flash { position: absolute; inset: 0; pointer-events: none; background: rgba(229, 56, 59, .5); opacity: 0; z-index: 5; }
+.bad-flash.on { animation: bad-flash .35s ease-out; }
+.screen.shake { animation: shake .35s ease-in-out; }
+.score-pop-layer { position: absolute; left: 0; right: 0; top: 30%; pointer-events: none; z-index: 6; }
+.score-pop { position: absolute; left: 50%; font-size: 34px; font-weight: 900; text-shadow: 0 2px 6px rgba(0,0,0,.6); animation: pop-up .7s ease-out forwards; white-space: nowrap; }
+.score-pop.good { color: #7dffb3; }
+.score-pop.bad { color: #ff8a8a; }
+.score-pop small { font-size: 16px; opacity: .9; }
+
+/* 倒數 */
+.countdown { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(8, 20, 17, .82); }
+.countdown[hidden] { display: none; }
+.countdown span { font-size: min(34vw, 200px); font-weight: 900; color: var(--accent); text-shadow: 0 6px 0 #6b4700, 0 12px 30px rgba(0,0,0,.5); animation: count-pop .7s ease-out; }
+.countdown span.go { color: #7dffb3; text-shadow: 0 6px 0 #0d5b33, 0 12px 30px rgba(0,0,0,.5); }
+
+/* ═════════ 動畫 ═════════ */
+@keyframes card-in { from { transform: translateY(-12px) scale(.96); opacity: .3; } to { transform: none; opacity: 1; } }
+@keyframes flash-correct {
+  0%   { transform: scale(1); box-shadow: 0 5px 0 #b6a67c, 0 0 0 0 rgba(47,191,113,.9); }
+  35%  { transform: scale(1.2); background: #c8f7dc; box-shadow: 0 5px 0 #2a9d63, 0 0 28px 10px rgba(47,191,113,.9); }
+  100% { transform: scale(1); box-shadow: 0 5px 0 #b6a67c, 0 0 0 0 rgba(47,191,113,0); }
+}
+@keyframes reveal { 50% { transform: scale(1.1); } }
+@keyframes shake { 0%,100% { transform: none; } 15% { transform: translateX(-10px); } 35% { transform: translateX(9px); } 55% { transform: translateX(-7px); } 75% { transform: translateX(5px); } }
+@keyframes bad-flash { from { opacity: 1; } to { opacity: 0; } }
+@keyframes pop-up { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, -60px); opacity: 0; } }
+@keyframes count-pop { from { transform: scale(1.7); opacity: 0; } 30% { opacity: 1; } to { transform: scale(1); } }
+@keyframes blink { 50% { opacity: .45; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .screen.shake { animation: none; }
+  .ans.reveal-correct { animation: none; }
+}
+
+/* 橫向手機 / 很矮的視窗：縮小非必要區塊 */
+@media (max-height: 520px) {
+  :root { --card-w: min(60vw, 420px, calc((100vh - 200px) * 1.5)); }
+  .topbar { padding-top: 4px; min-height: 32px; }
+  .hud { padding-top: 4px; }
+  .stat .label { font-size: 10px; }
+  .stat { padding: 3px 2px; }
+  .stat .value { font-size: 20px; }
+  .ans svg { width: clamp(30px, 8vh, 48px); }
+  .ans { padding: 5px 2px 4px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ═════════ 首頁 ═════════ -->
+  <section id="screen-menu" class="screen active" aria-label="首頁">
+    <div class="menu-inner">
+      <h1 class="title">五物快手</h1>
+      <p class="subtitle">受《閃靈快手》啟發的反應小遊戲</p>
+
+      <div class="legend" id="legend" aria-label="五個物件的正確顏色"></div>
+
+      <div class="menu-buttons">
+        <button class="btn btn-primary" id="btn-challenge" type="button">
+          <span class="btn-main">開始遊戲</span><span class="btn-sub">60 秒挑戰</span>
+        </button>
+        <button class="btn btn-secondary" id="btn-practice" type="button">
+          <span class="btn-main">練習模式</span><span class="btn-sub">沒有時間限制・附解說</span>
+        </button>
+      </div>
+      <p class="best" id="best-score" hidden></p>
+
+      <details class="howto">
+        <summary>玩法說明</summary>
+        <div class="howto-body">
+          <p><strong>規則 A・完全符合</strong><br>
+            卡片上若有物件<em>同時</em>「物件正確」＋「顏色正確」，答案就是它。<br>
+            例：藍色書本 + 紅色老鼠 → <b>書本</b>。</p>
+          <p><strong>規則 B・排除法</strong><br>
+            兩個物件都沒用自己的顏色時，答案是「沒出現在卡片上」，且「它的正確顏色也沒出現在卡片上」的物件。<br>
+            例：紅色幽靈 + 藍色瓶子 → 椅子（紅色已出現）、書本（藍色已出現）都排除 → <b>老鼠</b>。</p>
+          <p class="howto-score">答對 +100，答錯 −50。連續答對 3 題起每題 +20，5 題起每題 +50。電腦可用鍵盤 1～5 作答。</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ═════════ 遊戲畫面 ═════════ -->
+  <section id="screen-game" class="screen" aria-label="遊戲畫面">
+    <div class="topbar">
+      <button class="btn-mini" id="btn-exit" type="button">✕ 離開</button>
+      <span class="mode-label" id="mode-label"></span>
+      <button class="btn-mini" id="btn-finish" type="button">結束練習</button>
+    </div>
+
+    <div class="hud" id="hud">
+      <div class="stat" id="stat-time"><span class="label">剩餘時間</span><span class="value" id="v-time">60</span></div>
+      <div class="stat"><span class="label">分數</span><span class="value" id="v-score">0</span></div>
+      <div class="stat"><span class="label">答對</span><span class="value" id="v-correct">0</span></div>
+      <div class="stat"><span class="label">答錯</span><span class="value" id="v-wrong">0</span></div>
+      <div class="stat" id="stat-combo"><span class="label">Combo</span><span class="value" id="v-combo">0</span></div>
+    </div>
+    <div class="timebar" id="timebar" aria-hidden="true"><i id="timebar-fill"></i></div>
+
+    <div class="table" id="table">
+      <div class="table-inner">
+        <div class="card" id="card" aria-live="polite">
+          <div class="slot" id="slot-0"></div>
+          <div class="slot" id="slot-1"></div>
+        </div>
+
+        <!-- 練習模式：作答後的回饋與解說 -->
+        <div class="feedback" id="feedback" hidden>
+          <p class="feedback-msg" id="feedback-msg"></p>
+          <div class="feedback-actions">
+            <button class="btn-pill" id="btn-why" type="button" aria-expanded="false">為什麼答案是這個？</button>
+            <button class="btn-pill btn-pill-primary" id="btn-next" type="button">下一題 ▶</button>
+          </div>
+          <div class="explain" id="explain" hidden></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="answers" id="answers" role="group" aria-label="選擇答案"></div>
+
+    <div class="bad-flash" id="bad-flash" aria-hidden="true"></div>
+    <div class="score-pop-layer" id="pop-layer" aria-hidden="true"></div>
+  </section>
+
+  <!-- ═════════ 結果畫面 ═════════ -->
+  <section id="screen-result" class="screen" aria-label="結果畫面">
+    <div class="result-inner">
+      <h2 class="result-title" id="result-title">時間到！</h2>
+      <div class="result-score">
+        <span class="label">總分</span>
+        <span class="big" id="r-score">0</span>
+        <span class="newbest" id="r-newbest" hidden>🎉 新紀錄！</span>
+      </div>
+      <div class="result-grid">
+        <div class="r-item"><span class="label">答對題數</span><span class="value" id="r-correct">0</span></div>
+        <div class="r-item"><span class="label">答錯題數</span><span class="value" id="r-wrong">0</span></div>
+        <div class="r-item"><span class="label">正確率</span><span class="value" id="r-accuracy">—</span></div>
+        <div class="r-item"><span class="label">最高 Combo</span><span class="value" id="r-maxcombo">0</span></div>
+        <div class="r-item"><span class="label">平均反應時間</span><span class="value" id="r-avg">—</span></div>
+        <div class="r-item"><span class="label">最快反應時間</span><span class="value" id="r-fastest">—</span></div>
+      </div>
+      <p class="result-note">反應時間只計算答對的題目。</p>
+      <div class="menu-buttons">
+        <button class="btn btn-primary" id="btn-again" type="button"><span class="btn-main">再玩一次</span></button>
+        <button class="btn btn-secondary" id="btn-home" type="button"><span class="btn-main">回首頁</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ 倒數 ═════════ -->
+  <div class="countdown" id="countdown" hidden aria-hidden="true"><span id="countdown-text">3</span></div>
+</div>
+
+<script>
+/*
+ * config.js — 所有可調整的遊戲資料集中在這裡。
+ * 想改物件、顏色、遊戲時間、分數、Combo 規則，只需要改這個檔案。
+ */
+(function (root) {
+  'use strict';
+
+  root.GAME_CONFIG = {
+    // ── 遊戲時間 ────────────────────────────────
+    gameSeconds: 60,                 // 「60 秒挑戰」的總時間
+
+    // ── 顏色（key 為內部代號；hex 為顯示用色碼）──
+    colors: {
+      white: { name: '白色', hex: '#ffffff' },
+      red:   { name: '紅色', hex: '#e63946' },
+      blue:  { name: '藍色', hex: '#2f6fe4' },
+      green: { name: '綠色', hex: '#2fb35a' },
+      gray:  { name: '灰色', hex: '#8d949e' },
+    },
+
+    // ── 物件與各自的「正確顏色」（順序即底部按鈕順序與鍵盤 1~5）──
+    // ghost = white, chair = red, book = blue, bottle = green, mouse = gray
+    objects: [
+      { id: 'ghost',  name: '幽靈', correctColor: 'white' },
+      { id: 'chair',  name: '椅子', correctColor: 'red' },
+      { id: 'book',   name: '書本', correctColor: 'blue' },
+      { id: 'bottle', name: '瓶子', correctColor: 'green' },
+      { id: 'mouse',  name: '老鼠', correctColor: 'gray' },
+    ],
+
+    // ── 題目生成 ────────────────────────────────
+    card: {
+      // false：卡片上的兩個顏色一定不同（預設，較接近桌遊）
+      // true ：允許兩個物件使用同一種顏色（生成器仍會自動過濾掉答案不唯一的題目）
+      allowSameColor: false,
+      maxGenerateAttempts: 1000,     // 保險用：重新生成的最大次數
+    },
+
+    // ── 計分 ────────────────────────────────────
+    scoring: {
+      correct: 100,                  // 答對基本分
+      wrong: -50,                    // 答錯扣分
+      // Combo 額外加分：取「符合條件中 minCombo 最高」的那一條，不疊加。
+      // combo 指「包含這一題在內」的連續答對題數。
+      comboBonuses: [
+        { minCombo: 5, bonus: 50 },  // 連續答對 5 題以上：每題額外 +50
+        { minCombo: 3, bonus: 20 },  // 連續答對 3 題以上：每題額外 +20
+      ],
+    },
+
+    // ── 節奏與動畫時間（毫秒）──────────────────
+    timing: {
+      countdownSteps: ['3', '2', '1', 'GO'],
+      countdownStepMs: 700,          // 3、2、1 每個數字的停留時間
+      countdownGoMs: 500,            // 「GO」的停留時間，之後立刻出第一題
+      wrongRevealMs: 700,            // 挑戰模式答錯後，標示正確答案的停留時間
+    },
+
+    // ── 其他 ────────────────────────────────────
+    storageKey: 'fiveThingsBlitz.bestScore',
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/*
+ * logic.js — 純邏輯（不碰 DOM）：題目生成、答案判定、計分、統計、解釋文字。
+ *
+ * 設計重點：
+ *   generateCard()     只負責「隨機出題」，完全不知道答案是什麼。
+ *   getValidAnswers()  / getCorrectAnswer() 依規則計算答案。
+ *   generateCard() 會呼叫 getCorrectAnswer() 檢查：不是「剛好一個答案」就捨棄重來。
+ *
+ * 題目（card）格式：
+ *   { items: [ { object: 'book', color: 'blue' }, { object: 'mouse', color: 'red' } ] }
+ */
+(function (root) {
+  'use strict';
+
+  const cfg = () => root.GAME_CONFIG;
+
+  // ═══════════════ 資料查詢 ═══════════════
+  function getObject(id) {
+    const obj = cfg().objects.find((o) => o.id === id);
+    if (!obj) throw new Error('Unknown object: ' + id);
+    return obj;
+  }
+  const getCorrectColor = (objectId) => getObject(objectId).correctColor;
+  const getObjectName = (objectId) => getObject(objectId).name;
+  const getColorName = (colorKey) => cfg().colors[colorKey].name;
+  const describeItem = (item) => getColorName(item.color) + getObjectName(item.object);
+
+  // ═══════════════ 隨機工具 ═══════════════
+  function pickDistinct(list, count, rng) {
+    const pool = list.slice();
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      const j = Math.floor(rng() * pool.length);
+      out.push(pool.splice(j, 1)[0]);
+    }
+    return out;
+  }
+
+  // ═══════════════ 題目 ═══════════════
+  function makeCard(objectA, colorA, objectB, colorB) {
+    return { items: [{ object: objectA, color: colorA }, { object: objectB, color: colorB }] };
+  }
+
+  function cardsEqual(a, b) {
+    if (!a || !b) return false;
+    return a.items.every((it, i) => it.object === b.items[i].object && it.color === b.items[i].color);
+  }
+
+  /** 題目格式是否合法：兩個不同物件；（依設定）兩個不同顏色。不檢查答案。 */
+  function isWellFormedCard(card) {
+    if (!card || !Array.isArray(card.items) || card.items.length !== 2) return false;
+    const [a, b] = card.items;
+    if (a.object === b.object) return false;
+    if (!cfg().card.allowSameColor && a.color === b.color) return false;
+    return true;
+  }
+
+  // ═══════════════ 答案判定（與生成器完全分離）═══════════════
+  /**
+   * 依規則列出「所有」符合的答案。
+   *   規則 A：卡片上有「物件正確＋顏色正確」的物件 → 那些物件就是答案。
+   *   規則 B：否則，答案是「沒出現在卡片上」且「其正確顏色也沒出現在卡片上」的物件。
+   * @returns {{ rule: 'A'|'B', answers: string[] }}
+   */
+  function getValidAnswers(card) {
+    const items = card.items;
+    const exact = items
+      .filter((it) => it.color === getCorrectColor(it.object))
+      .map((it) => it.object);
+    if (exact.length > 0) return { rule: 'A', answers: exact };
+
+    const shownObjects = new Set(items.map((it) => it.object));
+    const shownColors = new Set(items.map((it) => it.color));
+    const answers = cfg().objects
+      .filter((o) => !shownObjects.has(o.id) && !shownColors.has(o.correctColor))
+      .map((o) => o.id);
+    return { rule: 'B', answers };
+  }
+
+  /** 回傳唯一正確答案的物件 id；若沒有答案或有多個答案則回傳 null。 */
+  function getCorrectAnswer(card) {
+    const { answers } = getValidAnswers(card);
+    return answers.length === 1 ? answers[0] : null;
+  }
+
+  /** 這題適用哪個規則（'A' 或 'B'）。 */
+  function getAnswerRule(card) {
+    return getValidAnswers(card).rule;
+  }
+
+  // ═══════════════ 題目生成 ═══════════════
+  /**
+   * 隨機產生一道「保證只有唯一答案」的題目。
+   * @param {function} rng  回傳 [0,1) 的亂數函式（測試時可注入）
+   * @param {object|null} previousCard 上一題；避免連續出現一模一樣的題目
+   */
+  function generateCard(rng, previousCard) {
+    rng = rng || Math.random;
+    const c = cfg();
+    const objectIds = c.objects.map((o) => o.id);
+    const colorKeys = Object.keys(c.colors);
+
+    for (let attempt = 0; attempt < c.card.maxGenerateAttempts; attempt++) {
+      const [objA, objB] = pickDistinct(objectIds, 2, rng);
+      let colorA, colorB;
+      if (c.card.allowSameColor) {
+        colorA = colorKeys[Math.floor(rng() * colorKeys.length)];
+        colorB = colorKeys[Math.floor(rng() * colorKeys.length)];
+      } else {
+        [colorA, colorB] = pickDistinct(colorKeys, 2, rng);
+      }
+      const card = makeCard(objA, colorA, objB, colorB);
+
+      if (getCorrectAnswer(card) === null) continue;   // 沒有答案或多個答案 → 捨棄
+      if (cardsEqual(card, previousCard)) continue;    // 與上一題完全相同 → 捨棄
+      return card;
+    }
+    throw new Error('generateCard: 無法產生合法題目，請檢查 config。');
+  }
+
+  /** 列舉所有格式合法的題目（測試與統計用）。 */
+  function enumerateCards() {
+    const c = cfg();
+    const out = [];
+    for (const a of c.objects) for (const b of c.objects) {
+      if (a.id === b.id) continue;
+      for (const ca of Object.keys(c.colors)) for (const cb of Object.keys(c.colors)) {
+        const card = makeCard(a.id, ca, b.id, cb);
+        if (isWellFormedCard(card)) out.push(card);
+      }
+    }
+    return out;
+  }
+
+  // ═══════════════ 計分 ═══════════════
+  function getComboBonus(combo) {
+    const tiers = cfg().scoring.comboBonuses.slice().sort((x, y) => y.minCombo - x.minCombo);
+    const tier = tiers.find((t) => combo >= t.minCombo);
+    return tier ? tier.bonus : 0;
+  }
+
+  /** 計算一次作答的得分。comboBefore = 作答前的連續答對數。 */
+  function scoreAnswer(comboBefore, isCorrect) {
+    const s = cfg().scoring;
+    if (!isCorrect) {
+      return { isCorrect, comboAfter: 0, base: s.wrong, bonus: 0, points: s.wrong };
+    }
+    const comboAfter = comboBefore + 1;
+    const bonus = getComboBonus(comboAfter);
+    return { isCorrect, comboAfter, base: s.correct, bonus, points: s.correct + bonus };
+  }
+
+  // ═══════════════ 統計 ═══════════════
+  function createStats() {
+    return { score: 0, correct: 0, wrong: 0, combo: 0, maxCombo: 0, correctTimes: [], allTimes: [] };
+  }
+
+  /** 把一次作答記入統計，回傳該次得分明細。 */
+  function recordAnswer(stats, answer) {
+    const r = scoreAnswer(stats.combo, answer.isCorrect);
+    stats.score += r.points;
+    stats.combo = r.comboAfter;
+    stats.maxCombo = Math.max(stats.maxCombo, stats.combo);
+    if (answer.isCorrect) {
+      stats.correct += 1;
+      stats.correctTimes.push(answer.ms);
+    } else {
+      stats.wrong += 1;
+    }
+    stats.allTimes.push(answer.ms);
+    return r;
+  }
+
+  /** 結算：正確率 / 平均反應時間 / 最快反應時間（後兩者只計算「答對」的題目）。 */
+  function summarizeStats(stats) {
+    const total = stats.correct + stats.wrong;
+    const times = stats.correctTimes;
+    return {
+      score: stats.score,
+      correct: stats.correct,
+      wrong: stats.wrong,
+      total,
+      accuracy: total > 0 ? stats.correct / total : null,
+      avgMs: times.length ? times.reduce((a, b) => a + b, 0) / times.length : null,
+      fastestMs: times.length ? Math.min.apply(null, times) : null,
+      maxCombo: stats.maxCombo,
+    };
+  }
+
+  // ═══════════════ 解釋（練習模式）═══════════════
+  /**
+   * 產生「為什麼答案是這個？」的說明。
+   * @returns {{ rule:'A'|'B', title:string, lines:string[], details:{text:string, ok:boolean}[] }}
+   */
+  function explainCard(card) {
+    const { rule, answers } = getValidAnswers(card);
+    const items = card.items;
+
+    if (rule === 'A') {
+      const hit = items.find((it) => it.color === getCorrectColor(it.object));
+      const other = items.find((it) => it !== hit);
+      const lines = [
+        '卡片上的「' + describeItem(hit) + '」物件與顏色都正確（' +
+          getObjectName(hit.object) + '的正確顏色就是' + getColorName(hit.color) + '），因此使用完全符合規則。',
+        '另一個「' + describeItem(other) + '」不符合（' + getObjectName(other.object) +
+          '的正確顏色是' + getColorName(getCorrectColor(other.object)) + '）。',
+        '所以答案是「' + getObjectName(hit.object) + '」。',
+      ];
+      return { rule, title: '完全符合規則', lines, details: [] };
+    }
+
+    const shownObjects = items.map((it) => it.object);
+    const shownColors = items.map((it) => it.color);
+    const answerObj = getObject(answers[0]);
+    const details = cfg().objects
+      .filter((o) => !shownObjects.includes(o.id))
+      .map((o) => {
+        const colorShown = shownColors.includes(o.correctColor);
+        const colorName = getColorName(o.correctColor);
+        return {
+          ok: !colorShown,
+          text: o.name + '（正確顏色' + colorName + '）：' +
+            (colorShown ? colorName + '已出現 → 排除' : colorName + '沒出現 → 符合'),
+        };
+      });
+    const lines = [
+      '卡片中沒有任何物件顏色完全符合，因此使用排除規則。',
+      '卡片已出現' + shownColors.map(getColorName).join('與') + '，也出現' +
+        shownObjects.map(getObjectName).join('與') + '。',
+      '唯一同時沒有出現物件與其正確顏色的是' + getColorName(answerObj.correctColor) + answerObj.name + '。',
+    ];
+    return { rule, title: '排除規則', lines, details };
+  }
+
+  root.GhostBlitz = {
+    getObject, getCorrectColor, getObjectName, getColorName, describeItem,
+    makeCard, cardsEqual, isWellFormedCard,
+    getValidAnswers, getCorrectAnswer, getAnswerRule,
+    generateCard, enumerateCards,
+    getComboBonus, scoreAnswer,
+    createStats, recordAnswer, summarizeStats,
+    explainCard,
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/*
+ * icons.js — 五個物件的 SVG 圖示（純向量，不依賴任何外部資源）。
+ * 每個圖示的「主色」由參數傳入，所以同一個物件可以畫成任何顏色。
+ * 想換造型只要改這裡對應的函式即可。
+ */
+(function (root) {
+  'use strict';
+
+  const INK = '#2a2a35'; // 外框 / 五官顏色
+
+  // fill 為主色。stroke 統一用深色外框，讓白色物件在淺色卡片上也看得清楚。
+  const shapes = {
+    ghost: (fill) => `
+      <path d="M20 90V46C20 24 33 11 50 11s30 13 30 35v44l-10-9-10 9-10-9-10 9-10-9z"
+            fill="${fill}" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>
+      <ellipse cx="39" cy="44" rx="5" ry="6.5" fill="${INK}"/>
+      <ellipse cx="61" cy="44" rx="5" ry="6.5" fill="${INK}"/>
+      <ellipse cx="50" cy="61" rx="5" ry="6" fill="${INK}"/>`,
+
+    chair: (fill) => `
+      <g fill="${fill}" stroke="${INK}" stroke-width="4" stroke-linejoin="round">
+        <rect x="63" y="62" width="10" height="30" rx="2"/>
+        <rect x="24" y="62" width="10" height="30" rx="2"/>
+        <rect x="24" y="8" width="11" height="56" rx="3"/>
+        <rect x="24" y="48" width="50" height="15" rx="3"/>
+        <rect x="35" y="16" width="26" height="8" rx="2"/>
+        <rect x="35" y="30" width="26" height="8" rx="2"/>
+      </g>`,
+
+    book: (fill) => `
+      <rect x="27" y="14" width="56" height="76" rx="4" fill="#fff6dc" stroke="${INK}" stroke-width="4"/>
+      <rect x="19" y="8" width="58" height="76" rx="5" fill="${fill}" stroke="${INK}" stroke-width="4"/>
+      <rect x="19" y="8" width="11" height="76" rx="4" fill="#000" opacity=".2"/>
+      <path d="M40 30h26M40 42h20" stroke="#000" stroke-opacity=".28" stroke-width="5" stroke-linecap="round"/>`,
+
+    bottle: (fill) => `
+      <path d="M42 30V38C30 44 26 52 26 62v22q0 8 8 8h32q8 0 8-8V62c0-10-4-18-16-24V30z"
+            fill="${fill}" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>
+      <rect x="39" y="6" width="22" height="13" rx="3" fill="#4a4a58" stroke="${INK}" stroke-width="4"/>
+      <rect x="34" y="54" width="6" height="30" rx="3" fill="#fff" opacity=".4"/>`,
+
+    mouse: (fill) => `
+      <path d="M74 84c16 4 20-14 12-24" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="26" cy="30" r="15" fill="${fill}" stroke="${INK}" stroke-width="4"/>
+      <circle cx="74" cy="30" r="15" fill="${fill}" stroke="${INK}" stroke-width="4"/>
+      <circle cx="26" cy="30" r="7" fill="#f6b8c4"/>
+      <circle cx="74" cy="30" r="7" fill="#f6b8c4"/>
+      <ellipse cx="50" cy="80" rx="26" ry="13" fill="${fill}" stroke="${INK}" stroke-width="4"/>
+      <circle cx="50" cy="55" r="30" fill="${fill}" stroke="${INK}" stroke-width="4"/>
+      <circle cx="39" cy="50" r="4.5" fill="${INK}"/>
+      <circle cx="61" cy="50" r="4.5" fill="${INK}"/>
+      <ellipse cx="50" cy="63" rx="5" ry="4" fill="#f6b8c4" stroke="${INK}" stroke-width="2.5"/>
+      <path d="M32 62l-13-3M32 68l-12 3M68 62l13-3M68 68l12 3" stroke="${INK}" stroke-width="2.5" stroke-linecap="round"/>`,
+  };
+
+  /** 回傳 SVG 字串。objectId 例如 'ghost'，colorKey 例如 'red'（取自 GAME_CONFIG.colors）。 */
+  function iconSVG(objectId, colorKey) {
+    const hex = root.GAME_CONFIG.colors[colorKey].hex;
+    return '<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">' +
+      shapes[objectId](hex) + '</svg>';
+  }
+
+  root.GameIcons = { iconSVG };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/*
+ * game.js — 遊戲流程與畫面（DOM）。純邏輯都在 logic.js，這裡只負責「把邏輯接到畫面上」。
+ *
+ * 流程：startGame → runCountdown → beginPlay → nextCard → handleAnswer →（nextCard …）→ endGame
+ *
+ * game.phase：
+ *   'countdown' 倒數中（不能作答）      'playing'   等待玩家作答
+ *   'revealing' 挑戰模式答錯，短暫顯示正確答案（不能作答）
+ *   'awaitNext' 練習模式作答後，等玩家按「下一題」     'result' 已結算
+ */
+(function () {
+  'use strict';
+
+  const CFG = window.GAME_CONFIG;
+  const GB = window.GhostBlitz;
+  const Icons = window.GameIcons;
+
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    screens: { menu: $('screen-menu'), game: $('screen-game'), result: $('screen-result') },
+    game: $('screen-game'),
+    legend: $('legend'), best: $('best-score'),
+    modeLabel: $('mode-label'), btnExit: $('btn-exit'), btnFinish: $('btn-finish'),
+    statTime: $('stat-time'), statCombo: $('stat-combo'),
+    vTime: $('v-time'), vScore: $('v-score'), vCorrect: $('v-correct'), vWrong: $('v-wrong'), vCombo: $('v-combo'),
+    timebarFill: $('timebar-fill'),
+    card: $('card'), slots: [$('slot-0'), $('slot-1')], answers: $('answers'),
+    feedback: $('feedback'), feedbackMsg: $('feedback-msg'), btnWhy: $('btn-why'), btnNext: $('btn-next'), explain: $('explain'),
+    badFlash: $('bad-flash'), popLayer: $('pop-layer'),
+    countdown: $('countdown'), countdownText: $('countdown-text'),
+    rTitle: $('result-title'), rScore: $('r-score'), rNewBest: $('r-newbest'),
+    rCorrect: $('r-correct'), rWrong: $('r-wrong'), rAccuracy: $('r-accuracy'),
+    rMaxCombo: $('r-maxcombo'), rAvg: $('r-avg'), rFastest: $('r-fastest'),
+  };
+
+  let session = 0;                       // 每次開始/離開遊戲就 +1，用來作廢舊的計時器回呼
+  let game = null;                       // 目前這一局；null = 不在遊戲中
+  const timers = { countdown: null, tick: null, reveal: null };
+  let lastPointerDownAt = -Infinity;     // 用來避免「pointerdown 與 click 重複作答」
+
+  // ═══════════════ 初始化 ═══════════════
+  function init() {
+    renderLegend();
+    renderAnswerButtons();
+    renderBest();
+    bindEvents();
+  }
+
+  function renderLegend() {
+    els.legend.innerHTML = CFG.objects.map((o) =>
+      '<div class="legend-item">' + Icons.iconSVG(o.id, o.correctColor) + '<span>' +
+      GB.getColorName(o.correctColor) + o.name + '</span></div>').join('');
+  }
+
+  function renderAnswerButtons() {
+    els.answers.innerHTML = CFG.objects.map((o, i) =>
+      '<button class="ans" type="button" data-id="' + o.id + '" aria-label="' + o.name + '">' +
+      '<span class="key">' + (i + 1) + '</span>' +
+      Icons.iconSVG(o.id, o.correctColor) + '<span>' + o.name + '</span></button>').join('');
+  }
+
+  function bindEvents() {
+    $('btn-challenge').addEventListener('click', () => startGame('challenge'));
+    $('btn-practice').addEventListener('click', () => startGame('practice'));
+    $('btn-again').addEventListener('click', () => startGame(game ? game.mode : 'challenge'));
+    $('btn-home').addEventListener('click', goHome);
+    els.btnExit.addEventListener('click', goHome);
+    els.btnFinish.addEventListener('click', endGame);
+    els.btnNext.addEventListener('click', goNextPractice);
+    els.btnWhy.addEventListener('click', toggleExplain);
+
+    // 觸控/滑鼠用 pointerdown（反應遊戲要越快越好）；鍵盤操作按鈕時走 click（detail === 0）。
+    els.answers.addEventListener('pointerdown', (e) => {
+      const btn = e.target.closest('.ans');
+      if (!btn || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      e.preventDefault();
+      lastPointerDownAt = performance.now();
+      handleAnswer(btn.dataset.id);
+    });
+    els.answers.addEventListener('click', (e) => {
+      const btn = e.target.closest('.ans');
+      if (!btn || e.detail !== 0) return;
+      if (performance.now() - lastPointerDownAt < 800) return;
+      handleAnswer(btn.dataset.id);
+    });
+    els.answers.addEventListener('animationend', (e) => e.target.classList.remove('flash-correct'));
+
+    document.addEventListener('keydown', onKeyDown);
+    // iOS Safari：禁止雙指縮放手勢
+    document.addEventListener('gesturestart', (e) => e.preventDefault());
+  }
+
+  function onKeyDown(e) {
+    if (!game || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    const n = Number(e.key);
+    if (n >= 1 && n <= CFG.objects.length) {
+      handleAnswer(CFG.objects[n - 1].id);
+    } else if (game.phase === 'awaitNext' && (e.key === 'n' || e.key === 'N' || e.key === 'ArrowRight')) {
+      goNextPractice();
+    }
+  }
+
+  // ═══════════════ 流程 ═══════════════
+  function createGame(mode) {
+    return {
+      mode,
+      phase: 'countdown',
+      stats: GB.createStats(),
+      card: null, answer: null, previousCard: null,
+      cardShownAt: 0, endAt: 0,
+    };
+  }
+
+  /** 開始新的一局。會先取消上一局的所有計時器與狀態，因此「重新開始」一定是乾淨的。 */
+  function startGame(mode) {
+    cancelGame();
+    game = createGame(mode);
+    resetGameUI();
+    els.game.dataset.mode = mode;
+    els.modeLabel.textContent = mode === 'challenge' ? CFG.gameSeconds + ' 秒挑戰' : '練習模式';
+    showScreen('game');
+    updateUI();
+    runCountdown(session);
+  }
+
+  function runCountdown(mySession) {
+    const steps = CFG.timing.countdownSteps;
+    let i = 0;
+    els.countdown.hidden = false;
+    const step = () => {
+      if (mySession !== session) return;
+      if (i >= steps.length) {
+        els.countdown.hidden = true;
+        beginPlay();
+        return;
+      }
+      const isLast = i === steps.length - 1;
+      showCountdownStep(steps[i], isLast);
+      i += 1;
+      timers.countdown = setTimeout(step, isLast ? CFG.timing.countdownGoMs : CFG.timing.countdownStepMs);
+    };
+    step();
+  }
+
+  function showCountdownStep(text, isLast) {
+    const span = els.countdownText;
+    span.textContent = text;
+    span.classList.toggle('go', isLast);
+    span.style.animation = 'none';
+    void span.offsetWidth;            // 強制重排，讓動畫重新播放
+    span.style.animation = '';
+  }
+
+  function beginPlay() {
+    if (game.mode === 'challenge') {
+      game.endAt = performance.now() + CFG.gameSeconds * 1000;
+      timers.tick = setInterval(tick, 100);
+    }
+    nextCard();
+  }
+
+  function tick() {
+    if (!game || game.phase === 'result') return;
+    if (performance.now() >= game.endAt) endGame();
+    else updateUI();
+  }
+
+  /** 出下一題：先產生題目，再另外呼叫 getCorrectAnswer() 算出答案。 */
+  function nextCard() {
+    game.card = GB.generateCard(Math.random, game.previousCard);
+    game.answer = GB.getCorrectAnswer(game.card);
+    game.phase = 'playing';
+    clearAnswerMarks();
+    hideFeedback();
+    renderCard(game.card);
+    game.cardShownAt = performance.now();
+    updateUI();
+  }
+
+  /** 玩家作答。 */
+  function handleAnswer(objectId) {
+    if (!game || game.phase !== 'playing') return;
+    const now = performance.now();
+    if (game.mode === 'challenge' && now >= game.endAt) { endGame(); return; }
+
+    const ms = now - game.cardShownAt;
+    const isCorrect = objectId === game.answer;
+    const result = GB.recordAnswer(game.stats, { isCorrect, ms });
+    game.previousCard = game.card;
+
+    showScorePop(result);
+    if (isCorrect) onCorrect(objectId, result);
+    else onWrong(objectId);
+    updateUI();
+  }
+
+  function onCorrect(objectId, result) {
+    flashCorrect(objectId);
+    if (game.mode === 'challenge') {
+      nextCard();                                   // 答對立即下一題
+    } else {
+      game.phase = 'awaitNext';
+      showFeedback(true, '✓ 答對了！ +' + result.points);
+    }
+  }
+
+  function onWrong(objectId) {
+    playWrongEffects();
+    markWrong(objectId);
+    revealAnswer(game.answer);
+    if (game.mode === 'challenge') {
+      game.phase = 'revealing';
+      const mySession = session;
+      timers.reveal = setTimeout(() => {
+        if (mySession === session && game && game.phase === 'revealing') nextCard();
+      }, CFG.timing.wrongRevealMs);
+    } else {
+      game.phase = 'awaitNext';
+      showFeedback(false, '✗ 答錯了，正確答案是「' + GB.getObjectName(game.answer) + '」');
+    }
+  }
+
+  function goNextPractice() {
+    if (game && game.phase === 'awaitNext') nextCard();
+  }
+
+  /** 結束並顯示結果（時間到 / 練習中按「結束練習」）。 */
+  function endGame() {
+    if (!game || game.phase === 'result') return;
+    clearTimers();
+    session += 1;
+    const finished = game;
+    finished.phase = 'result';
+    els.countdown.hidden = true;
+
+    const s = GB.summarizeStats(finished.stats);
+    const isChallenge = finished.mode === 'challenge';
+    els.rTitle.textContent = isChallenge ? '時間到！' : '練習結束';
+    els.rScore.textContent = s.score;
+    els.rCorrect.textContent = s.correct;
+    els.rWrong.textContent = s.wrong;
+    els.rAccuracy.textContent = s.accuracy === null ? '—' : Math.round(s.accuracy * 100) + '%';
+    els.rMaxCombo.textContent = s.maxCombo;
+    els.rAvg.textContent = formatSeconds(s.avgMs);
+    els.rFastest.textContent = formatSeconds(s.fastestMs);
+    els.rNewBest.hidden = !(isChallenge && saveBestScore(s.score));
+    showScreen('result');
+  }
+
+  function goHome() {
+    cancelGame();
+    renderBest();
+    showScreen('menu');
+  }
+
+  function cancelGame() {
+    clearTimers();
+    session += 1;
+    game = null;
+    els.countdown.hidden = true;
+  }
+
+  function clearTimers() {
+    clearTimeout(timers.countdown);
+    clearInterval(timers.tick);
+    clearTimeout(timers.reveal);
+    timers.countdown = timers.tick = timers.reveal = null;
+  }
+
+  // ═══════════════ 畫面更新 ═══════════════
+  /** 依目前 game 狀態更新上方資訊列。 */
+  function updateUI() {
+    if (!game) return;
+    const st = game.stats;
+    els.vScore.textContent = st.score;
+    els.vCorrect.textContent = st.correct;
+    els.vWrong.textContent = st.wrong;
+    els.vCombo.textContent = st.combo;
+
+    const bonus = GB.getComboBonus(st.combo);
+    const maxBonus = Math.max.apply(null, CFG.scoring.comboBonuses.map((t) => t.bonus));
+    els.statCombo.classList.toggle('hot', bonus > 0);
+    els.statCombo.classList.toggle('fire', bonus > 0 && bonus === maxBonus);
+
+    if (game.mode === 'challenge') {
+      const remaining = game.endAt ? Math.max(0, game.endAt - performance.now()) : CFG.gameSeconds * 1000;
+      els.vTime.textContent = Math.ceil(remaining / 1000);
+      els.timebarFill.style.transform = 'scaleX(' + (remaining / (CFG.gameSeconds * 1000)) + ')';
+      els.statTime.classList.toggle('low', remaining <= 10000 && game.endAt > 0);
+    } else {
+      els.vTime.textContent = '∞';
+      els.statTime.classList.remove('low');
+    }
+  }
+
+  function renderCard(card) {
+    els.card.classList.remove('empty');
+    card.items.forEach((item, i) => {
+      els.slots[i].innerHTML = Icons.iconSVG(item.object, item.color);
+      els.slots[i].dataset.object = item.object;   // 方便除錯與自動化測試讀取
+      els.slots[i].dataset.color = item.color;
+    });
+    els.card.classList.remove('enter');
+    void els.card.offsetWidth;
+    els.card.classList.add('enter');
+  }
+
+  function showScreen(name) {
+    Object.keys(els.screens).forEach((k) => els.screens[k].classList.toggle('active', k === name));
+  }
+
+  /** 重設遊戲畫面上的所有暫時狀態。 */
+  function resetGameUI() {
+    els.slots.forEach((s) => { s.innerHTML = ''; delete s.dataset.object; delete s.dataset.color; });
+    els.card.classList.add('empty');
+    els.card.classList.remove('enter');
+    clearAnswerMarks();
+    els.answers.querySelectorAll('.flash-correct').forEach((b) => b.classList.remove('flash-correct'));
+    hideFeedback();
+    els.game.classList.remove('shake');
+    els.badFlash.classList.remove('on');
+    els.popLayer.innerHTML = '';
+    els.timebarFill.style.transform = 'scaleX(1)';
+    els.statTime.classList.remove('low');
+  }
+
+  // ── 作答回饋 ──
+  function buttonOf(objectId) {
+    return els.answers.querySelector('[data-id="' + objectId + '"]');
+  }
+  function retrigger(el, className) {
+    el.classList.remove(className);
+    void el.offsetWidth;
+    el.classList.add(className);
+  }
+  function flashCorrect(objectId) { retrigger(buttonOf(objectId), 'flash-correct'); }
+  function markWrong(objectId) { buttonOf(objectId).classList.add('mark-wrong'); }
+  function revealAnswer(objectId) { buttonOf(objectId).classList.add('reveal-correct'); }
+  function clearAnswerMarks() {
+    els.answers.querySelectorAll('.mark-wrong, .reveal-correct').forEach((b) => {
+      b.classList.remove('mark-wrong', 'reveal-correct');
+    });
+  }
+  function playWrongEffects() {
+    retrigger(els.game, 'shake');
+    retrigger(els.badFlash, 'on');
+  }
+
+  /** 得分浮動文字（+120 / −50）。 */
+  function showScorePop(result) {
+    const pop = document.createElement('div');
+    pop.className = 'score-pop ' + (result.isCorrect ? 'good' : 'bad');
+    const sign = result.points > 0 ? '+' : '';
+    pop.innerHTML = sign + result.points + (result.bonus > 0 ? ' <small>Combo ×' + result.comboAfter + '</small>' : '');
+    pop.style.marginLeft = (Math.random() * 80 - 40) + 'px';
+    pop.addEventListener('animationend', () => pop.remove());
+    els.popLayer.appendChild(pop);
+  }
+
+  // ── 練習模式回饋 / 解說 ──
+  function showFeedback(isGood, message) {
+    els.feedback.hidden = false;
+    els.feedbackMsg.textContent = message;
+    els.feedbackMsg.className = 'feedback-msg ' + (isGood ? 'good' : 'bad');
+    els.explain.hidden = true;
+    els.btnWhy.textContent = '為什麼答案是這個？';
+    els.btnWhy.setAttribute('aria-expanded', 'false');
+  }
+
+  function hideFeedback() {
+    els.feedback.hidden = true;
+    els.explain.hidden = true;
+    els.explain.innerHTML = '';
+  }
+
+  function toggleExplain() {
+    if (!game || !game.card) return;
+    const open = els.explain.hidden;
+    if (open) renderExplain(GB.explainCard(game.card));
+    els.explain.hidden = !open;
+    els.btnWhy.textContent = open ? '收起說明' : '為什麼答案是這個？';
+    els.btnWhy.setAttribute('aria-expanded', String(open));
+  }
+
+  function renderExplain(info) {
+    els.explain.innerHTML = '';
+    const h = document.createElement('h3');
+    h.textContent = '適用：' + info.title;
+    els.explain.appendChild(h);
+    info.lines.forEach((text) => {
+      const p = document.createElement('p');
+      p.textContent = text;
+      els.explain.appendChild(p);
+    });
+    if (info.details.length) {
+      const ul = document.createElement('ul');
+      info.details.forEach((d) => {
+        const li = document.createElement('li');
+        li.className = d.ok ? 'ok' : 'no';
+        li.textContent = d.text;
+        ul.appendChild(li);
+      });
+      els.explain.appendChild(ul);
+    }
+  }
+
+  // ═══════════════ 最高分 / 格式化 ═══════════════
+  function loadBestScore() {
+    try {
+      const v = localStorage.getItem(CFG.storageKey);
+      return v === null ? null : Number(v);
+    } catch (e) { return null; }
+  }
+
+  /** 若破紀錄就儲存並回傳 true。 */
+  function saveBestScore(score) {
+    const best = loadBestScore();
+    if (score <= 0 || (best !== null && score <= best)) return false;
+    try { localStorage.setItem(CFG.storageKey, String(score)); } catch (e) { /* 隱私模式等情況：忽略 */ }
+    return true;
+  }
+
+  function renderBest() {
+    const best = loadBestScore();
+    els.best.hidden = best === null;
+    if (best !== null) els.best.textContent = '🏆 60 秒挑戰最高分：' + best;
+  }
+
+  function formatSeconds(ms) {
+    return ms === null ? '—' : (ms / 1000).toFixed(2) + ' 秒';
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
